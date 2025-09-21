@@ -1,0 +1,159 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Luup Life - Anonymous Content Sharing</title>
+    <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+    <header>
+        <div class="logo-container">
+            <img src="/static/luuplogo.svg" alt="Luup Life Logo" class="logo">
+        </div>
+        <p>Anonymous content sharing • 20 min sessions</p>
+        <div id="ttl" class="ttl"></div>
+    </header>
+
+    <main>
+        <!-- Home Screen -->
+        <section id="home" class="view">
+            <h2>What would you like to share?</h2>
+                        
+            <div class="button-grid">
+                <button id="btnPhotos" class="feature-btn">
+                    📸 Share Photos
+                    <small>Upload images for others to download</small>
+                </button>
+                <button id="btnChat" class="feature-btn">
+                    💬 Start Chat Room
+                    <small>Create a temporary chat room</small>
+                </button>
+                <button id="btnWhiteboard" class="feature-btn">
+                    🎨 Start Whiteboard
+                    <small>Collaborative drawing space</small>
+                </button>
+                <button id="btnPoll" class="feature-btn">
+                    📊 Quick Poll
+                    <small>Ask questions, get responses</small>
+                </button>
+            </div>
+        </section>
+
+                    <!-- Active Sessions -->
+                    <div class="active-sessions">
+                        <h3>Your Active Sessions</h3>
+                        <div id="activeSessions" class="sessions-list">
+                            <p class="muted">Loading sessions...</p>
+                        </div>
+                    </div>
+        
+        <!-- Photo Sharing Forms -->
+        <section id="photoForm" class="view hidden">
+            <h2>Share Photos</h2>
+            <form id="photosForm" class="card">
+                <input type="file" id="photosInput" multiple accept="image/*" required>
+                <button type="submit">Upload & Generate QR</button>
+            </form>
+        </section>
+
+        <!-- Chat Room Forms -->
+        <section id="chatForm" class="view hidden">
+            <h2>Start Chat Room</h2>
+            <form id="chatCreateForm" class="card">
+                <input type="text" id="chatName" placeholder="Chat room name" required>
+                <button type="submit">Create & Generate QR</button>
+            </form>
+        </section>
+
+        <!-- Whiteboard Forms -->
+        <section id="whiteboardForm" class="view hidden">
+            <h2>Start Whiteboard</h2>
+            <form id="whiteboardCreateForm" class="card">
+                <button type="submit">Create & Generate QR</button>
+            </form>
+        </section>
+
+        <!-- Poll Forms -->
+        <section id="pollForm" class="view hidden">
+            <h2>Quick Poll</h2>
+            <form id="pollCreateForm" class="card">
+                <input type="text" id="question1" placeholder="Question 1" required>
+                <input type="text" id="question2" placeholder="Question 2">
+                <input type="text" id="question3" placeholder="Question 3">
+                <label>
+                    Minimum responses to show results:
+                    <input type="number" id="minResponses" min="1" value="3" required>
+                </label>
+                <button type="submit">Create & Generate QR</button>
+            </form>
+        </section>
+
+        <!-- QR Code Display -->
+        <section id="invite" class="view hidden">
+            <h2>Share with Others</h2>
+            <div class="qr-container">
+                <img id="qr" alt="QR Code" />
+                <p>Scan this QR code to join the session</p>
+                <button id="goSession">Open Session</button>
+                <button id="backToHome">Back to Home</button>
+            </div>
+        </section>
+
+        <!-- Photo Viewing -->
+        <section id="photosView" class="view hidden">
+            <h2>Shared Photos</h2>
+            <div id="photoGrid" class="photo-grid"></div>
+            <div class="actions">
+                <button id="showQrPhotos">Show QR Code</button>
+                <button id="backToHomePhotos">Back to Home</button>
+            </div>
+        </section>
+
+        <!-- Chat Room -->
+        <section id="chatView" class="view hidden">
+            <h2 id="chatRoomName">Chat Room</h2>
+            <div id="chatLog" class="chat-log"></div>
+            <form id="chatSend" class="chat-input">
+                <input id="chatText" placeholder="Type a message..." maxlength="240" required>
+                <button type="submit">Send</button>
+            </form>
+            <div class="actions">
+                <button id="showQrChat">Show QR Code</button>
+                <button id="backToHomeChat">Back to Home</button>
+            </div>
+        </section>
+
+        <!-- Whiteboard -->
+        <section id="whiteboardView" class="view hidden">
+            <h2>Collaborative Whiteboard</h2>
+            <div class="whiteboard-container">
+                <canvas id="board" width="800" height="500"></canvas>
+            </div>
+            <div class="actions">
+                <button id="clearBoard">Clear Board</button>
+                <button id="showQrBoard">Show QR Code</button>
+                <button id="backToHomeBoard">Back to Home</button>
+            </div>
+        </section>
+
+        <!-- Poll Viewing -->
+        <section id="pollView" class="view hidden">
+            <h2 id="pollTitle">Quick Poll</h2>
+            <div id="pollQuestions" class="poll-questions"></div>
+            <div id="pollMeta" class="poll-meta"></div>
+            <div id="pollResults" class="poll-results hidden"></div>
+            <div class="actions">
+                <button id="showQrPoll">Show QR Code</button>
+                <button id="backToHomePoll">Back to Home</button>
+            </div>
+        </section>
+    </main>
+
+    <footer>
+        <small>Sessions expire in 20 minutes. Nothing is stored server-side after expiry.</small>
+    </footer>
+
+    <script src="/static/app.js"></script>
+</body>
+</html>
