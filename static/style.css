@@ -182,8 +182,9 @@ main {
 }
 
 .feature-btn {
-    background: var(--card);
-    border: 2px solid var(--border);
+    background: linear-gradient(135deg, var(--accent-lighter) 0%, #f0f9ff 100%);
+    color: var(--accent);
+    border: 2px solid var(--accent-light);
     border-radius: 12px;
     padding: 24px;
     cursor: pointer;
@@ -192,19 +193,47 @@ main {
     display: flex;
     flex-direction: column;
     gap: 8px;
-    box-shadow: 0 2px 4px var(--shadow);
+    box-shadow: 0 4px 8px var(--shadow);
+    position: relative;
+    overflow: hidden;
+}
+
+.feature-btn::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: linear-gradient(135deg, var(--accent-light) 0%, var(--accent-lighter) 100%);
+    opacity: 0;
+    transition: opacity 0.2s ease;
+    z-index: 0;
 }
 
 .feature-btn:hover {
     border-color: var(--accent);
-    background: var(--accent-lighter);
-    transform: translateY(-2px);
-    box-shadow: 0 8px 16px var(--shadow);
+    color: var(--fg);
+    transform: translateY(-3px);
+    box-shadow: 0 12px 24px rgba(59, 130, 246, 0.2);
+}
+
+.feature-btn:hover::before {
+    opacity: 0.7;
+}
+
+.feature-btn > * {
+    position: relative;
+    z-index: 1;
 }
 
 .feature-btn small {
-    color: var(--muted);
+    color: var(--accent);
     font-size: 0.85rem;
+}
+
+.feature-btn:hover small {
+    color: var(--muted);
 }
 
 /* Cards */
@@ -313,18 +342,21 @@ button.small {
 .chat-log {
     height: 300px;
     overflow-y: auto;
-    border: 1px solid #374151;
+    border: 1px solid var(--border);
     border-radius: 8px;
     padding: 12px;
-    background: #0d0f14;
+    background: var(--card);
     margin: 16px 0;
+    box-shadow: 0 2px 4px var(--shadow);
 }
 
 .chat-message {
     margin: 8px 0;
     padding: 8px 12px;
     border-radius: 8px;
-    background: #1f2937;
+    background: var(--accent-lighter);
+    color: var(--fg);
+    border-left: 3px solid var(--accent);
 }
 
 .chat-message.system {
@@ -332,6 +364,7 @@ button.small {
     color: var(--muted);
     font-style: italic;
     text-align: center;
+    border-left: none;
 }
 
 .chat-input {

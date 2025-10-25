@@ -7,3 +7,4 @@ qrcode[pil]==7.4.2
 pillow==10.4.0
 redis[hiredis]==5.0.1
 python-multipart==0.0.9
+openai>=1.40.0

@@ -27,6 +27,22 @@ from PIL import Image, ImageOps
 import hmac
 import hashlib
 
+from pydantic import BaseModel, HttpUrl
+
+# Initialize moderator only if OpenAI API key is available
+try:
+    from .moderator import OpenAIModerator
+    import os
+    if os.getenv("OPENAI_API_KEY"):
+        mod = OpenAIModerator()
+    else:
+        mod = None
+        print("Warning: OPENAI_API_KEY not set. Moderation is disabled.")
+except Exception as e:
+    mod = None
+    print(f"Warning: Could not initialize moderator: {e}. Moderation is disabled.")
+
+
 try:
     import qrcode
 except ImportError:
@@ -391,6 +407,25 @@ async def upload_photos(files: List[UploadFile] = File(...)):
         if len(content) > MAX_UPLOAD_BYTES:
             raise HTTPException(status_code=400, detail=f"File too large: {file.filename}")
         
+        # Moderate image content
+        if mod:
+            try:
+                image_b64 = base64.b64encode(content).decode('utf-8')
+                print(f"[MODERATION] Checking image: {file.filename} ({len(content)} bytes)")
+                is_ok = mod.is_image_ok(b64=image_b64)
+                print(f"[MODERATION] Image result: {'APPROVED' if is_ok else 'REJECTED'} - {file.filename}")
+                
+                if not is_ok:
+                    raise HTTPException(
+                        status_code=400, 
+                        detail="Image contains inappropriate content and cannot be shared. Please choose a different image."
+                    )
+            except Exception as e:
+                if "inappropriate content" in str(e):
+                    raise e
+                # If moderation fails for technical reasons, log and continue (fail-open)
+                print(f"[MODERATION] Image moderation failed for {file.filename}: {e}")
+        
         # Process and save image
         processed_filename, file_size = process_and_save_image(content, file.filename, session_dir)
         
@@ -479,6 +514,18 @@ async def download_photo(session_id: str, filename: str):
 @app.post("/api/chat-room/create")
 async def create_chat_room(room_name: str = Form(...)):
     """Create a new chat room"""
+    # Moderate room name
+    if mod:
+        print(f"[MODERATION] Checking chat room name: '{room_name}'")
+        is_ok = mod.is_text_ok(room_name)
+        print(f"[MODERATION] Room name result: {'APPROVED' if is_ok else 'REJECTED'} - '{room_name}'")
+        
+        if not is_ok:
+            raise HTTPException(
+                status_code=400,
+                detail="Room name contains inappropriate content. Please choose a different name."
+            )
+    
     session_id = await create_session(SessionType.CHAT_ROOM, {"name": room_name, "messages": []})
     return {"session_id": session_id, "room_name": room_name}
 
@@ -541,6 +588,23 @@ async def chat_websocket(websocket: WebSocket, session_id: str):
         while True:
             data = await websocket.receive_text()
             message_data = json.loads(data)
+            
+            # Moderate chat message
+            if mod:
+                message_text = message_data["text"]
+                print(f"[MODERATION] Checking chat message: '{message_text}'")
+                is_ok = mod.is_text_ok(message_text)
+                print(f"[MODERATION] Chat message result: {'APPROVED' if is_ok else 'REJECTED'} - '{message_text}'")
+                
+                if not is_ok:
+                    # Send moderation error back to the sender
+                    error_message = {
+                        "type": "error",
+                        "message": "Your message contains inappropriate content and cannot be sent. Please revise your message.",
+                        "timestamp": datetime.now(timezone.utc).isoformat()
+                    }
+                    await websocket.send_text(json.dumps(error_message))
+                    continue
             
             # Save message to session
             session_data = await get_session(session_id)
@@ -623,6 +687,19 @@ async def create_quick_poll(
     if min_responses < 1:
         raise HTTPException(status_code=400, detail="Minimum responses must be at least 1")
     
+    # Moderate poll questions
+    if mod:
+        for i, question in enumerate(questions):
+            print(f"[MODERATION] Checking poll question {i+1}: '{question}'")
+            is_ok = mod.is_text_ok(question)
+            print(f"[MODERATION] Poll question {i+1} result: {'APPROVED' if is_ok else 'REJECTED'} - '{question}'")
+            
+            if not is_ok:
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"Question {i+1} contains inappropriate content. Please revise your questions."
+                )
+    
     session_id = await create_session(SessionType.QUICK_POLL, {
         "questions": questions,
         "min_responses": min_responses,
@@ -673,6 +750,19 @@ async def submit_poll_response(session_id: str, responses: List[str] = Form(...)
     if len(responses) != len(session_data["data"]["questions"]):
         raise HTTPException(status_code=400, detail="Number of responses must match number of questions")
     
+    # Moderate poll responses
+    if mod:
+        for i, response in enumerate(responses):
+            print(f"[MODERATION] Checking poll response {i+1}: '{response}'")
+            is_ok = mod.is_text_ok(response)
+            print(f"[MODERATION] Poll response {i+1} result: {'APPROVED' if is_ok else 'REJECTED'} - '{response}'")
+            
+            if not is_ok:
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"Response {i+1} contains inappropriate content. Please revise your responses."
+                )
+    
     # Add response
     poll_responses = session_data["data"]["responses"]
     poll_responses.append({
@@ -710,6 +800,7 @@ async def get_poll_results(session_id: str):
         "questions": session_data["data"]["questions"],
         "responses": session_data["data"]["responses"]
     }
+    
 
 if __name__ == "__main__":
     import uvicorn
