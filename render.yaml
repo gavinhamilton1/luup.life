@@ -1,0 +1,73 @@
+services:
+  # --------------------------------------------------------------------------
+  # Frontend — Vite PWA served as a static site
+  # --------------------------------------------------------------------------
+  - type: web
+    name: luup-web
+    runtime: static
+    buildCommand: cd frontend && npm install && npm run build
+    staticPublishPath: ./frontend/dist
+    pullRequestPreviewsEnabled: false
+    # SPA fallback: every route serves index.html, React Router handles the rest.
+    routes:
+      - type: rewrite
+        source: /*
+        destination: /index.html
+    headers:
+      - path: /*
+        name: X-Content-Type-Options
+        value: nosniff
+      - path: /*
+        name: Referrer-Policy
+        value: strict-origin-when-cross-origin
+    envVars:
+      # Point the built client at the backend. After the first deploy, update
+      # this in the dashboard to the actual API URL Render assigns
+      # (e.g. https://luup-api.onrender.com) or your custom domain.
+      - key: VITE_API_URL
+        sync: false
+
+  # --------------------------------------------------------------------------
+  # Backend — FastAPI + WebSocket
+  # --------------------------------------------------------------------------
+  - type: web
+    name: luup-api
+    runtime: python
+    plan: starter
+    buildCommand: cd backend && pip install -r requirements.txt
+    startCommand: cd backend && uvicorn app.main:app --host 0.0.0.0 --port $PORT
+    healthCheckPath: /health
+    autoDeploy: true
+    envVars:
+      - key: REDIS_URL
+        fromService:
+          name: luup-redis
+          type: redis
+          property: connectionString
+      - key: R2_ACCOUNT_ID
+        sync: false
+      - key: R2_ACCESS_KEY_ID
+        sync: false
+      - key: R2_SECRET_ACCESS_KEY
+        sync: false
+      - key: R2_BUCKET_NAME
+        sync: false
+      - key: R2_ENDPOINT_URL
+        sync: false
+      # Origin the frontend is served from — used for CORS and join-URL
+      # generation. Set to the luup-web URL, or your custom domain.
+      - key: FRONTEND_URL
+        sync: false
+      - key: SECRET_KEY
+        generateValue: true
+      - key: SESSION_TTL_SECONDS
+        value: "172800"
+
+  # --------------------------------------------------------------------------
+  # Redis — session state + pub/sub fan-out for WebSockets
+  # --------------------------------------------------------------------------
+  - type: redis
+    name: luup-redis
+    plan: starter
+    maxmemoryPolicy: allkeys-lru
+    ipAllowList: []

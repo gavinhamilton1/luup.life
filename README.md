@@ -42,24 +42,18 @@ The Vite dev server proxies `/api` and `/ws` to `http://localhost:8000`.
 
 ## Deployment
 
-### Backend — Render
+Everything — backend, frontend, and Redis — is defined in the repo-root `render.yaml` blueprint. From the Render dashboard:
 
-The repo ships `backend/render.yaml` for blueprint deployment. From the Render dashboard:
-
-1. Point a new Blueprint at this repo.
-2. Render creates a `luup-api` web service and a `luup-redis` instance.
-3. Fill the R2 credentials in the service env vars (`R2_ACCOUNT_ID`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`, `R2_BUCKET_NAME`, `R2_ENDPOINT_URL`), and set `FRONTEND_URL=https://luup.life`.
-4. On the R2 bucket, set a lifecycle rule deleting `sessions/` objects older than 48 hours.
-
-### Frontend — Cloudflare Pages
-
-```
-Build command:     cd frontend && npm install && npm run build
-Build output:      frontend/dist
-Environment:       VITE_API_URL=https://<your-render-service>.onrender.com
-```
-
-`public/_redirects` handles SPA fallback for Pages.
+1. **New → Blueprint** → point at this repo. Render will create three resources:
+   - `luup-api` (Python web service, FastAPI)
+   - `luup-web` (static site, Vite build)
+   - `luup-redis` (managed Redis)
+2. **Fill secrets** in the dashboard:
+   - On `luup-api`: `R2_ACCOUNT_ID`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`, `R2_BUCKET_NAME`, `R2_ENDPOINT_URL`, and `FRONTEND_URL` (the `luup-web` URL or your custom domain).
+   - On `luup-web`: `VITE_API_URL` = the `luup-api` URL (e.g. `https://luup-api.onrender.com`).
+3. **Trigger deploys.** `luup-api` boots and passes its `/health` check; `luup-web` builds with the API URL baked in.
+4. **R2 lifecycle rule**: in the Cloudflare dashboard, on the `luup-pics` bucket → Settings → Object lifecycle rules → delete objects under prefix `sessions/` after 2 days. This is the backstop when a session is abandoned without being explicitly ended.
+5. (Optional) Point your custom domain (`luup.life`) at `luup-web` and update `FRONTEND_URL` on `luup-api` to match. The API stays on its Render subdomain; the frontend builds with `VITE_API_URL` pointing at it.
 
 ## Architecture notes
 
