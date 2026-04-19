@@ -8,6 +8,9 @@ services:
     buildCommand: cd frontend && npm install && npm run build
     staticPublishPath: ./frontend/dist
     pullRequestPreviewsEnabled: false
+    domains:
+      - luup.life
+      - www.luup.life
     # SPA fallback: every route serves index.html, React Router handles the rest.
     routes:
       - type: rewrite
@@ -38,7 +41,11 @@ services:
     startCommand: cd backend && uvicorn app.main:app --host 0.0.0.0 --port $PORT
     healthCheckPath: /health
     autoDeploy: true
+    domains:
+      - api.luup.life
     envVars:
+      - key: PYTHON_VERSION
+        value: "3.12.7"
       - key: REDIS_URL
         fromService:
           name: luup-redis

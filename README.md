@@ -53,7 +53,31 @@ Everything — backend, frontend, and Redis — is defined in the repo-root `ren
    - On `luup-web`: `VITE_API_URL` = the `luup-api` URL (e.g. `https://luup-api.onrender.com`).
 3. **Trigger deploys.** `luup-api` boots and passes its `/health` check; `luup-web` builds with the API URL baked in.
 4. **R2 lifecycle rule**: in the Cloudflare dashboard, on the `luup-pics` bucket → Settings → Object lifecycle rules → delete objects under prefix `sessions/` after 2 days. This is the backstop when a session is abandoned without being explicitly ended.
-5. (Optional) Point your custom domain (`luup.life`) at `luup-web` and update `FRONTEND_URL` on `luup-api` to match. The API stays on its Render subdomain; the frontend builds with `VITE_API_URL` pointing at it.
+### Custom domain (`luup.life`)
+
+The blueprint declares three custom domains:
+- `luup.life` → `luup-web`
+- `www.luup.life` → `luup-web`
+- `api.luup.life` → `luup-api`
+
+Render creates the domain records in pending state; you complete the wiring at your DNS registrar.
+
+1. **In Render** — once the Blueprint is applied, each service shows the domains under **Settings → Custom Domains** with a "Verify" button. Click it to see the exact target values Render generates.
+2. **At your DNS registrar** (for `luup.life`) — add these records:
+   | Host | Type | Value |
+   |---|---|---|
+   | `@` (apex) | `A` (or `ALIAS`/`ANAME` if supported) | the four IPv4 addresses Render shows, or the alias target Render provides |
+   | `www` | `CNAME` | `luup-web.onrender.com` (or the value Render shows) |
+   | `api` | `CNAME` | `luup-api.onrender.com` (or the value Render shows) |
+
+   Most registrars (Namecheap, Google Domains, Cloudflare) don't allow plain CNAME on an apex. Use `ALIAS`/`ANAME` if available, or Render's `A` records fallback.
+3. **Wait for verification** — usually 2–10 minutes. Render automatically provisions Let's Encrypt TLS once DNS propagates.
+4. **Update env vars** (in the Render dashboard):
+   - `luup-api` → `FRONTEND_URL=https://luup.life`
+   - `luup-web` → `VITE_API_URL=https://api.luup.life`
+5. **Redeploy `luup-web`** — **Manual Deploy → Clear build cache and deploy** — so the new `VITE_API_URL` is baked into the bundle.
+
+After that, QR codes encode `https://luup.life/j/<id>`, and the frontend talks to the backend over `api.luup.life` with WebSocket upgrades through Render's TLS proxy.
 
 ## Architecture notes
 
