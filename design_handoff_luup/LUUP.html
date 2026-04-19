@@ -1,0 +1,471 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>LUUP — ephemeral proximity chat & photos</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"/>
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
+<link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;500;600;700;800;900&display=swap" rel="stylesheet"/>
+<style>
+  html, body { margin: 0; padding: 0; background: #efece4; min-height: 100vh; font-family: Nunito, system-ui, sans-serif; color: #111; }
+  * { box-sizing: border-box; }
+  button { font-family: inherit; }
+  input { font-family: inherit; }
+  ::-webkit-scrollbar { width: 6px; height: 6px; }
+  ::-webkit-scrollbar-thumb { background: rgba(0,0,0,0.15); border-radius: 6px; }
+  @keyframes luup-spin { to { transform: rotate(360deg); } }
+  @keyframes luup-pulse { 0%,100% { opacity: 1; } 50% { opacity: 0.4; } }
+  @keyframes luup-fadein { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: translateY(0); } }
+  .fadein { animation: luup-fadein 240ms ease; }
+</style>
+</head>
+<body>
+<div id="root"></div>
+<script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+
+<script type="text/babel" src="lib/tokens.jsx"></script>
+<script type="text/babel" src="lib/primitives.jsx"></script>
+<script type="text/babel" src="lib/shell.jsx"></script>
+<script type="text/babel" src="lib/screens-onboard.jsx"></script>
+<script type="text/babel" src="lib/screens-qr.jsx"></script>
+<script type="text/babel" src="lib/screens-chat.jsx"></script>
+<script type="text/babel" src="lib/screens-photo.jsx"></script>
+
+<script type="text/babel" data-presets="react">
+const { useState, useEffect, useRef, useMemo } = React;
+
+const TWEAKS = /*EDITMODE-BEGIN*/{
+  "landingVariant": "A",
+  "qrVariant": "A",
+  "accent": "#0ea5e9",
+  "startDark": false
+}/*EDITMODE-END*/;
+
+// Seed data
+const PHOTOS = [
+  { author: 'maple',  label: 'first dance',     ratio: 3/4, color: '#ff9f7a', color2: '#ff4d6d', hue: 10, time: '21:14' },
+  { author: 'cocoa',  label: 'the toast',       ratio: 4/5, color: '#6b5cff', color2: '#c74dff', hue: 40, time: '21:28' },
+  { author: 'pippin', label: 'table 4',         ratio: 1,   color: '#2ecc8b', color2: '#0a8f5a', hue: 80, time: '21:32' },
+  { author: 'maple',  label: 'bouquet toss',    ratio: 3/4, color: '#f5a623', color2: '#ff6b2c', hue: 20, time: '21:40' },
+  { author: 'river',  label: 'cake!',           ratio: 4/5, color: '#38bdf8', color2: '#6b5cff', hue: 60, time: '21:55' },
+  { author: 'sage',   label: 'dancefloor',      ratio: 1,   color: '#e879f9', color2: '#ff4d6d', hue: 0,  time: '22:10' },
+  { author: 'cocoa',  label: 'sparklers',       ratio: 3/4, color: '#ff4d6d', color2: '#ff9f7a', hue: 30, cached: true, time: '22:20' },
+  { author: 'mochi',  label: 'view from booth', ratio: 1,   color: '#0a8f5a', color2: '#2ecc8b', hue: 70, time: '22:34' },
+];
+
+const MESSAGES = [
+  { system: true, body: 'Kai created this luup · 48h left' },
+  { author: 'kai',    body: "ok wait — did someone just bring a second cheese?", time: '21:02' },
+  { author: 'maple',  body: "that was me 😳 the parmesan was calling", time: '21:03', stackWithPrev: false },
+  { author: 'maple',  body: "is that ok?? i can hide it", time: '21:03', stackWithPrev: true },
+  { author: 'cocoa',  body: "more cheese is never a problem", time: '21:05' },
+  { author: 'kai',    body: "absolutely stay. bring the other 3 too.", time: '21:05' },
+  { author: 'pippin', body: "side note — who's on dessert duty?", time: '21:12' },
+  { system: true, body: 'river joined' },
+  { author: 'river',  body: "i brought a tarte tatin i hope that counts", time: '21:13' },
+  { author: 'maple',  body: "river you are the hero we needed", time: '21:14' },
+];
+
+const PARTICIPANTS = [
+  { name: 'kai', isCreator: true }, { name: 'maple' }, { name: 'cocoa' },
+  { name: 'pippin' }, { name: 'river' },
+];
+
+const ACTIVE_SESSIONS = [
+  { name: "Kai's dinner party", type: 'chat', participants: 5, timeLeft: '23h 12m', accent: '#ff4d6d' },
+  { name: "Sarah & Jules · wedding", type: 'photo', participants: 42, timeLeft: '1h 48m', accent: '#6b5cff', warning: true },
+  { name: "DesignCon hallway", type: 'chat', participants: 8, timeLeft: '41h', accent: '#0a8f5a' },
+];
+
+// ──────────── Flow map — shows all phone frames on one canvas ────────────
+
+const SCREENS = [
+  { id: 'landing',    group: 'Entry',        title: 'Landing',               sub: 'Light · default' },
+  { id: 'landing-dark',group:'Entry',        title: 'Landing',               sub: 'Dark mode' },
+  { id: 'landing-b',  group: 'Entry',        title: 'Landing · Variant B',   sub: 'Type-led' },
+  { id: 'active-empty',group:'Entry',        title: 'Landing · no luups',    sub: 'First-time user' },
+
+  { id: 'terms',      group: 'Create flow',  title: 'Terms',                 sub: '' },
+  { id: 'nick-create',group:'Create flow',   title: 'Pick nickname',         sub: 'Creator' },
+  { id: 'qr',         group: 'Create flow',  title: 'QR share · A',          sub: 'Playful loop · calm' },
+  { id: 'qr-b',       group: 'Create flow',  title: 'QR share · B',          sub: 'Pink canvas, bold' },
+  { id: 'qr-dark',    group: 'Create flow',  title: 'QR share · dark',       sub: '' },
+
+  { id: 'nick-join',  group: 'Join flow',    title: 'Pick nickname',         sub: 'Joiner' },
+  { id: 'nick-err',   group: 'Join flow',    title: 'Nickname taken',        sub: 'Validation' },
+
+  { id: 'chat',       group: 'Chat session', title: 'Active chat',           sub: 'Default state' },
+  { id: 'chat-sheet', group: 'Chat session', title: 'Participants',          sub: 'Sheet open' },
+  { id: 'chat-menu',  group: 'Chat session', title: 'Session menu',          sub: 'Host actions' },
+  { id: 'chat-warn',  group: 'Chat session', title: 'Expiring soon',         sub: '<2h warning' },
+  { id: 'chat-offline',group:'Chat session', title: 'Reconnecting',          sub: 'Offline banner' },
+
+  { id: 'photo',      group: 'Photo session',title: 'Photo grid',            sub: 'Masonry' },
+  { id: 'photo-empty',group: 'Photo session',title: 'Empty state',           sub: 'No photos' },
+  { id: 'photo-viewer',group:'Photo session',title: 'Full-size viewer',      sub: 'Lightbox' },
+  { id: 'photo-remove',group:'Photo session',title: 'Remove confirm',        sub: '' },
+  { id: 'photo-cached',group:'Photo session',title: 'Expired · cached',      sub: 'Republish' },
+
+  { id: 'expired',    group: 'End states',   title: 'Session expired',       sub: '' },
+  { id: 'ended',      group: 'End states',   title: 'Ended by host',         sub: '' },
+  { id: 'notfound',   group: 'End states',   title: 'Not found / bad QR',    sub: '' },
+];
+
+// ──────────── Single phone renderer for a given screen id ────────────
+
+function ScreenRenderer({ id, dark, accent, onBack, onGo, messagesOverride, participantsOverride }) {
+  const [sheet, setSheet] = useState(null); // 'participants' | 'menu' | null
+  const [viewer, setViewer] = useState(null);
+  const [confirm, setConfirm] = useState(null);
+  const [localMessages, setLocalMessages] = useState(messagesOverride || MESSAGES);
+
+  const goHome = () => onGo('landing');
+  const startCreate = (type) => { window._pendingType = type; onGo('terms'); };
+
+  switch (id) {
+    case 'landing':
+    case 'landing-dark':
+      return <LandingA dark={id==='landing-dark'} activeSessions={ACTIVE_SESSIONS} onStart={startCreate} onResume={(s) => onGo(s.type === 'chat' ? 'chat' : 'photo')}/>;
+    case 'landing-b':
+      return <LandingB dark={dark} activeSessions={ACTIVE_SESSIONS} onStart={startCreate} onResume={() => onGo('chat')}/>;
+    case 'active-empty':
+      return <LandingA dark={dark} activeSessions={[]} onStart={startCreate} onResume={() => {}}/>;
+
+    case 'terms':
+      return <TermsScreen dark={dark} type={window._pendingType || 'chat'} onBack={goHome} onAccept={() => onGo('nick-create')}/>;
+
+    case 'nick-create':
+      return <NicknameScreen dark={dark} mode="create" type={window._pendingType || 'chat'} onBack={() => onGo('terms')} onSubmit={() => onGo('qr')}/>;
+    case 'nick-join':
+      return <NicknameScreen dark={dark} mode="join" type="chat" onBack={goHome} onSubmit={() => onGo('chat')}/>;
+    case 'nick-err':
+      return <NicknameScreen dark={dark} mode="join" type="chat" onBack={goHome} onSubmit={() => onGo('chat')} error="That name is taken in this luup, try another"/>;
+
+    case 'qr':
+    case 'qr-dark':
+      return <QRShareScreen dark={id==='qr-dark'} accent={accent}
+        nickname="kai" participants={PARTICIPANTS} timeLeft="47h 58m"
+        onBack={goHome} onShare={() => {}} onEnter={() => onGo('chat')}/>;
+    case 'qr-b':
+      return <QRShareScreen dark={dark} variant="B" accent={accent}
+        nickname="kai" participants={PARTICIPANTS} timeLeft="47h 58m"
+        onBack={goHome} onShare={() => {}} onEnter={() => onGo('chat')}/>;
+
+    case 'chat':
+    case 'chat-warn':
+    case 'chat-offline':
+    case 'chat-sheet':
+    case 'chat-menu': {
+      const timeLeft = id === 'chat-warn' ? '1h 42m' : '23h 12m';
+      const warning = id === 'chat-warn';
+      const banner = id === 'chat-offline'
+        ? { text: "Reconnecting… messages will send when you're back.", tone: 'warn' }
+        : id === 'chat-warn' ? { text: "Heads up — luup ends in under 2 hours.", tone: 'warn', action: 'Extend' } : null;
+      return <>
+        <ChatScreen dark={dark} accent={accent} me="kai" participants={PARTICIPANTS}
+          messages={localMessages} timeLeft={timeLeft} warning={warning} banner={banner}
+          onSend={(b) => setLocalMessages(m => [...m, { author: 'kai', body: b, time: 'now' }])}
+          onAddPeople={() => onGo('qr')} onMenu={() => {}}/>
+        {(id === 'chat-sheet' || sheet === 'participants') && (
+          <ParticipantSheet dark={dark} participants={PARTICIPANTS} me="kai" onClose={() => { setSheet(null); if (id === 'chat-sheet') onGo('chat'); }}/>
+        )}
+        {(id === 'chat-menu' || sheet === 'menu') && (
+          <MenuSheet dark={dark} isCreator={true}
+            onClose={() => { setSheet(null); if (id === 'chat-menu') onGo('chat'); }}
+            onAction={(a) => {
+              setSheet(null);
+              if (a === 'end') setConfirm({ title: 'End luup for everyone?', body: 'Everyone will be disconnected and all messages will expire immediately.', confirmLabel: 'End luup', tone: 'danger' });
+              if (a === 'leave') onGo('landing');
+              if (a === 'addpeople') onGo('qr');
+            }}/>
+        )}
+        {confirm && <ConfirmDialog dark={dark} {...confirm} onCancel={() => setConfirm(null)} onConfirm={() => { setConfirm(null); onGo('ended'); }}/>}
+      </>;
+    }
+
+    case 'photo':
+    case 'photo-empty':
+    case 'photo-viewer':
+    case 'photo-remove':
+    case 'photo-cached': {
+      const empty = id === 'photo-empty';
+      const photos = id === 'photo-cached'
+        ? PHOTOS.map((p, i) => i < 5 ? { ...p, cached: true } : p)
+        : PHOTOS;
+      const banner = id === 'photo-cached'
+        ? { text: 'Some photos have expired. Republish from your device?', tone: 'warn', action: 'Republish' }
+        : null;
+      return <>
+        <PhotoScreen dark={dark} accent={accent} participants={[...PARTICIPANTS, {name:'sage'},{name:'mochi'}]}
+          timeLeft="23h 12m" photos={empty ? [] : photos} empty={empty}
+          banner={banner}
+          onMenu={() => {}} onAddPeople={() => onGo('qr')}
+          onAdd={() => {}}
+          onTap={(p) => setViewer(p)}
+          onRemove={(p) => setConfirm({
+            title: 'Remove this photo?',
+            body: 'It will be removed for everyone in the luup. Locally saved copies stay on your device.',
+            confirmLabel: 'Remove',
+            tone: 'danger',
+          })}/>
+        {(id === 'photo-viewer' || viewer) && (
+          <PhotoViewer photo={viewer || PHOTOS[0]} dark={dark}
+            onClose={() => { setViewer(null); if (id === 'photo-viewer') onGo('photo'); }}
+            onDownload={() => {}}
+            onRemove={() => setConfirm({
+              title: 'Remove this photo?',
+              body: 'It will be removed for everyone in the luup.',
+              confirmLabel: 'Remove', tone: 'danger',
+            })}/>
+        )}
+        {(id === 'photo-remove' || confirm) && (
+          <ConfirmDialog dark={dark}
+            title={confirm?.title || 'Remove this photo?'}
+            body={confirm?.body || 'It will be removed for everyone in the luup. Locally saved copies stay on your device.'}
+            confirmLabel={confirm?.confirmLabel || 'Remove'} tone="danger"
+            onCancel={() => { setConfirm(null); if (id === 'photo-remove') onGo('photo'); }}
+            onConfirm={() => { setConfirm(null); setViewer(null); if (id === 'photo-remove') onGo('photo'); }}/>
+        )}
+      </>;
+    }
+
+    case 'expired':
+      return <EdgeScreen dark={dark} tone="neutral"
+        icon={Icon.clock(32, '#ff4d6d')}
+        title="That's a wrap — 48h are up."
+        body="This luup has expired. Photos saved locally are still yours — they live on this device."
+        primary="Download my photos" onPrimary={goHome}
+        secondary="Back home" onSecondary={goHome}/>;
+    case 'ended':
+      return <EdgeScreen dark={dark} tone="neutral"
+        icon={Icon.logout(32, '#ff4d6d')}
+        title="Kai ended the luup."
+        body="Everyone has been disconnected. The messages and photos are gone."
+        primary="Back home" onPrimary={goHome}/>;
+    case 'notfound':
+      return <EdgeScreen dark={dark} tone="warn"
+        icon={Icon.alert(32, '#d97706')}
+        title="Hmm — that luup doesn't exist."
+        body="It might have expired, or the link is off by a letter. Start fresh?"
+        primary="Start a new luup" onPrimary={goHome}
+        secondary="Back home" onSecondary={goHome}/>;
+
+    default:
+      return <div style={{ padding: 40, fontFamily: 'Nunito, system-ui', color: '#999' }}>Screen not found: {id}</div>;
+  }
+}
+
+// ──────────── Tweaks panel ────────────
+
+function TweaksPanel({ dark, setDark, accent, setAccent, landingVariant, setLandingVariant, qrVariant, setQRVariant, focused, setFocused }) {
+  const accents = [
+    { name: 'Pink', v: '#ff4d6d' },
+    { name: 'Coral', v: '#ff6b2c' },
+    { name: 'Violet', v: '#6b5cff' },
+    { name: 'Green', v: '#0a8f5a' },
+    { name: 'Sky', v: '#0ea5e9' },
+    { name: 'Ink', v: '#111111' },
+  ];
+  const post = (edits) => window.parent.postMessage({ type: '__edit_mode_set_keys', edits }, '*');
+  return (
+    <div style={{
+      position: 'fixed', right: 18, bottom: 18, width: 280,
+      background: '#ffffff', borderRadius: 22, padding: 16,
+      border: '1px solid #e8e5dd',
+      boxShadow: '0 20px 50px rgba(0,0,0,0.12)', zIndex: 100,
+      fontFamily: 'Nunito, system-ui, sans-serif',
+    }}>
+      <div style={{ fontSize: 12, fontWeight: 800, letterSpacing: 1.2, textTransform: 'uppercase', color: '#8a8a85', marginBottom: 10 }}>Tweaks</div>
+
+      <div style={{ fontSize: 12, fontWeight: 700, color: '#3a3a3a', marginBottom: 6 }}>Accent</div>
+      <div style={{ display: 'flex', gap: 6, marginBottom: 14 }}>
+        {accents.map(a => (
+          <button key={a.v} onClick={() => { setAccent(a.v); post({ accent: a.v }); }} style={{
+            width: 32, height: 32, borderRadius: 10, border: accent === a.v ? '2.5px solid #111' : '1px solid #e8e5dd',
+            background: a.v, cursor: 'pointer', padding: 0,
+          }} title={a.name}/>
+        ))}
+      </div>
+
+      <div style={{ fontSize: 12, fontWeight: 700, color: '#3a3a3a', marginBottom: 6 }}>Theme</div>
+      <div style={{ display: 'flex', gap: 6, marginBottom: 14 }}>
+        {[['Light', false], ['Dark', true]].map(([l, v]) => (
+          <button key={l} onClick={() => { setDark(v); post({ startDark: v }); }} style={{
+            flex: 1, height: 34, borderRadius: 10, border: dark === v ? '2px solid #111' : '1px solid #e8e5dd',
+            background: dark === v ? '#111' : '#fff', color: dark === v ? '#fff' : '#111',
+            fontFamily: 'inherit', fontWeight: 700, fontSize: 13, cursor: 'pointer',
+          }}>{l}</button>
+        ))}
+      </div>
+
+      <div style={{ fontSize: 12, fontWeight: 700, color: '#3a3a3a', marginBottom: 6 }}>Landing variant</div>
+      <div style={{ display: 'flex', gap: 6, marginBottom: 14 }}>
+        {['A', 'B'].map(v => (
+          <button key={v} onClick={() => { setLandingVariant(v); post({ landingVariant: v }); }} style={{
+            flex: 1, height: 34, borderRadius: 10, border: landingVariant === v ? '2px solid #111' : '1px solid #e8e5dd',
+            background: landingVariant === v ? '#111' : '#fff', color: landingVariant === v ? '#fff' : '#111',
+            fontFamily: 'inherit', fontWeight: 700, fontSize: 13, cursor: 'pointer',
+          }}>{v === 'A' ? 'Calm' : 'Bold'}</button>
+        ))}
+      </div>
+
+      <div style={{ fontSize: 12, fontWeight: 700, color: '#3a3a3a', marginBottom: 6 }}>QR treatment</div>
+      <div style={{ display: 'flex', gap: 6, marginBottom: 14 }}>
+        {['A', 'B'].map(v => (
+          <button key={v} onClick={() => { setQRVariant(v); post({ qrVariant: v }); }} style={{
+            flex: 1, height: 34, borderRadius: 10, border: qrVariant === v ? '2px solid #111' : '1px solid #e8e5dd',
+            background: qrVariant === v ? '#111' : '#fff', color: qrVariant === v ? '#fff' : '#111',
+            fontFamily: 'inherit', fontWeight: 700, fontSize: 13, cursor: 'pointer',
+          }}>{v === 'A' ? 'Paper' : 'Canvas'}</button>
+        ))}
+      </div>
+
+      <div style={{ fontSize: 12, fontWeight: 700, color: '#3a3a3a', marginBottom: 6 }}>View</div>
+      <div style={{ display: 'flex', gap: 6 }}>
+        {[['Focused', true], ['Flow map', false]].map(([l, v]) => (
+          <button key={l} onClick={() => setFocused(v)} style={{
+            flex: 1, height: 34, borderRadius: 10, border: focused === v ? '2px solid #111' : '1px solid #e8e5dd',
+            background: focused === v ? '#111' : '#fff', color: focused === v ? '#fff' : '#111',
+            fontFamily: 'inherit', fontWeight: 700, fontSize: 13, cursor: 'pointer',
+          }}>{l}</button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// ──────────── Main ────────────
+
+function App() {
+  const [dark, setDark] = useState(!!TWEAKS.startDark);
+  const [accent, setAccent] = useState(TWEAKS.accent);
+  const [landingVariant, setLandingVariant] = useState(TWEAKS.landingVariant);
+  const [qrVariant, setQRVariant] = useState(TWEAKS.qrVariant);
+  const [focused, setFocused] = useState(false);
+  const [current, setCurrent] = useState('landing');
+  const [editMode, setEditMode] = useState(false);
+
+  // Enable tweaks toggle from host toolbar
+  useEffect(() => {
+    const onMsg = (e) => {
+      if (e.data?.type === '__activate_edit_mode') setEditMode(true);
+      if (e.data?.type === '__deactivate_edit_mode') setEditMode(false);
+    };
+    window.addEventListener('message', onMsg);
+    window.parent.postMessage({ type: '__edit_mode_available' }, '*');
+    return () => window.removeEventListener('message', onMsg);
+  }, []);
+
+  // persist current focused screen
+  useEffect(() => {
+    const saved = localStorage.getItem('luup-current');
+    if (saved) setCurrent(saved);
+    const savedFocused = localStorage.getItem('luup-focused');
+    if (savedFocused) setFocused(savedFocused === '1');
+  }, []);
+  useEffect(() => { localStorage.setItem('luup-current', current); }, [current]);
+  useEffect(() => { localStorage.setItem('luup-focused', focused ? '1' : '0'); }, [focused]);
+
+  // Honor landingVariant by swapping id
+  const effectiveId = (id) => {
+    if (id === 'landing' && landingVariant === 'B') return 'landing-b';
+    if (id === 'landing-b' && landingVariant === 'A') return 'landing';
+    if (id === 'qr' && qrVariant === 'B') return 'qr-b';
+    if (id === 'qr-b' && qrVariant === 'A') return 'qr';
+    return id;
+  };
+
+  // ─────────── Focused view ───────────
+  if (focused) {
+    return <>
+      <div data-screen-label={SCREENS.find(s => s.id === current)?.title || current}
+        style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: 40, background: '#efece4' }}>
+        <div style={{ marginBottom: 24, display: 'flex', alignItems: 'center', gap: 12 }}>
+          <LuupLogo size={28} color="#111"/>
+          <div style={{ fontFamily: 'Nunito', fontWeight: 800, fontSize: 22, letterSpacing: -0.4 }}>{SCREENS.find(s => s.id === current)?.title}</div>
+          <div style={{ fontFamily: 'Nunito', fontSize: 13, color: '#8a8a85' }}>{SCREENS.find(s => s.id === current)?.sub}</div>
+        </div>
+        <PhoneFrame dark={dark}>
+          <ScreenRenderer id={effectiveId(current)} dark={dark} accent={accent} onGo={setCurrent}/>
+        </PhoneFrame>
+        <div style={{ marginTop: 20, display: 'flex', gap: 6, maxWidth: 820, flexWrap: 'wrap', justifyContent: 'center' }}>
+          {SCREENS.map(s => (
+            <button key={s.id} onClick={() => setCurrent(s.id)} style={{
+              padding: '6px 12px', borderRadius: 999,
+              border: current === s.id ? '1.5px solid #111' : '1px solid #d9d6ce',
+              background: current === s.id ? '#111' : '#fff',
+              color: current === s.id ? '#fff' : '#3a3a3a',
+              fontFamily: 'Nunito', fontWeight: 700, fontSize: 12, cursor: 'pointer',
+            }}>{s.title}</button>
+          ))}
+        </div>
+      </div>
+      {editMode && <TweaksPanel {...{ dark, setDark, accent, setAccent, landingVariant, setLandingVariant, qrVariant, setQRVariant, focused, setFocused }}/>}
+    </>;
+  }
+
+  // ─────────── Flow map ───────────
+  const grouped = SCREENS.reduce((acc, s) => {
+    (acc[s.group] = acc[s.group] || []).push(s); return acc;
+  }, {});
+
+  return <>
+    <div style={{ minHeight: '100vh', padding: '40px 32px 80px', background: '#efece4' }}>
+      <div style={{ maxWidth: 1600, margin: '0 auto' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 16, marginBottom: 6 }}>
+          <LuupLogo size={44} color="#111" dotColor={accent}/>
+        </div>
+        <div style={{ fontFamily: 'Nunito', fontSize: 15, color: '#3a3a3a', maxWidth: 620, lineHeight: 1.45 }}>
+          Ephemeral proximity chat & photo sharing — full PWA journey, mobile-first (375×812).
+          Tap any phone to focus it and explore the flow. Use the Tweaks panel to swap accent, theme, and variants.
+        </div>
+
+        {Object.entries(grouped).map(([group, items]) => (
+          <section key={group} style={{ marginTop: 44 }}>
+            <div style={{
+              fontFamily: 'Nunito', fontSize: 11, fontWeight: 800, letterSpacing: 1.4,
+              textTransform: 'uppercase', color: '#8a8a85',
+              display: 'flex', alignItems: 'center', gap: 12, marginBottom: 20,
+            }}>
+              <div style={{ width: 24, height: 1, background: '#d9d6ce' }}/>
+              {group}
+              <div style={{ flex: 1, height: 1, background: '#d9d6ce' }}/>
+            </div>
+            <div style={{ display: 'flex', gap: 30, flexWrap: 'wrap' }}>
+              {items.map(s => (
+                <div key={s.id} data-screen-label={s.title} onClick={() => { setCurrent(s.id); setFocused(true); }} style={{ cursor: 'pointer' }}>
+                  <PhoneFrame dark={s.id.includes('dark') ? true : dark} label={s.title} sub={s.sub}>
+                    <ScreenRenderer id={effectiveId(s.id)} dark={s.id.includes('dark') ? true : dark} accent={accent} onGo={(nid) => { setCurrent(nid); setFocused(true); }}/>
+                  </PhoneFrame>
+                </div>
+              ))}
+            </div>
+          </section>
+        ))}
+
+        <div style={{ marginTop: 60, padding: 26, background: '#fff', border: '1px solid #e8e5dd', borderRadius: 22, maxWidth: 820 }}>
+          <div style={{ fontFamily: 'Nunito', fontWeight: 800, fontSize: 18, letterSpacing: -0.3, marginBottom: 10 }}>Design notes</div>
+          <ul style={{ margin: 0, paddingLeft: 20, fontFamily: 'Nunito', fontSize: 14, lineHeight: 1.55, color: '#3a3a3a' }}>
+            <li><b>Type:</b> Nunito (rounded, humanist) + system mono for codes/timers.</li>
+            <li><b>QR hero:</b> animated <i>loop border</i> that riffs on the logo's L-loop — orbiting dot + fading tail. High-contrast QR card floats above.</li>
+            <li><b>Tone:</b> "You've got 48 hours together." Warm, not precious.</li>
+            <li><b>Motion:</b> 160–240ms cubic transitions on buttons; pulse on LIVE badge; scale bump on nickname blob when a new person joins.</li>
+            <li><b>Timer:</b> Under 2h, the clock icon + text go <span style={{color:'#d97706', fontWeight:800}}>warn</span> and a soft banner appears with Extend CTA (host only).</li>
+            <li><b>Offline:</b> Banner at top ("Reconnecting… messages will send when you're back"). Cached photos get a diagonal-stripe treatment + OFFLINE ONLY pill; any participant can Republish.</li>
+            <li><b>A11y:</b> Touch targets ≥44px, AA contrast for primary text, screen-reader labels on icon buttons (add <code>aria-label</code> in implementation).</li>
+            <li><b>Per-session accent:</b> each luup picks a color from a warm palette; used on chat bubbles (mine) and header avatar.</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+    {editMode && <TweaksPanel {...{ dark, setDark, accent, setAccent, landingVariant, setLandingVariant, qrVariant, setQRVariant, focused, setFocused }}/>}
+  </>;
+}
+
+ReactDOM.createRoot(document.getElementById('root')).render(<App/>);
+</script>
+</body>
+</html>
