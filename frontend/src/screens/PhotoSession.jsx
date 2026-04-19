@@ -12,6 +12,7 @@ import {
 } from '../components/Icon.jsx';
 import { Sheet, Dialog } from '../components/Sheet.jsx';
 import { Button } from '../components/Button.jsx';
+import { AddPeople } from '../components/AddPeople.jsx';
 import { EdgeScreen } from './Edge.jsx';
 import { useStore } from '../lib/store.js';
 import { useWebSocket } from '../hooks/useWebSocket.js';
@@ -464,7 +465,7 @@ export function PhotoSession({ onEnded, endedReason }) {
       </Sheet>
 
       <Sheet open={addOpen} onClose={() => setAddOpen(false)}>
-        <AddPeopleSheet
+        <AddPeople
           sessionId={sessionId}
           onShare={() => {
             const url = `${location.origin}/j/${sessionId}`;
@@ -724,52 +725,6 @@ function PhotoMenu({ isCreator, onAction }) {
   );
 }
 
-function AddPeopleSheet({ sessionId, onShare }) {
-  const url = `${location.origin}/j/${sessionId}`;
-  const [copied, setCopied] = useState(false);
-  return (
-    <div style={{ padding: '0 22px 14px' }}>
-      <div style={{ fontWeight: 800, fontSize: 20, color: 'var(--ink)', marginBottom: 10 }}>
-        Add people
-      </div>
-      <div style={{ fontSize: 14, color: 'var(--ink-soft)', marginBottom: 16 }}>
-        Share this link with anyone you want to bring in.
-      </div>
-      <div
-        style={{
-          fontFamily: 'var(--mono)',
-          fontSize: 13,
-          padding: '12px 14px',
-          borderRadius: 14,
-          background: 'var(--bg-elev)',
-          border: '1px solid var(--line)',
-          marginBottom: 14,
-          wordBreak: 'break-all',
-        }}
-      >
-        {url}
-      </div>
-      <div style={{ display: 'flex', gap: 10 }}>
-        <Button
-          variant="ghost"
-          size="md"
-          fullWidth
-          onClick={async () => {
-            if (await copyText(url)) {
-              setCopied(true);
-              setTimeout(() => setCopied(false), 1600);
-            }
-          }}
-        >
-          {copied ? 'Copied' : 'Copy link'}
-        </Button>
-        <Button variant="accent" size="md" fullWidth onClick={onShare}>
-          Share…
-        </Button>
-      </div>
-    </div>
-  );
-}
 
 function ConfirmDialogBody({ confirm, onCancel, onConfirm }) {
   if (!confirm) return null;
