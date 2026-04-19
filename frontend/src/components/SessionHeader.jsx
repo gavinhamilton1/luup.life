@@ -129,8 +129,8 @@ export function SessionHeader({
           onClick={onAddPeople}
           aria-label="Add people"
           style={{
-            width: 40,
             height: 40,
+            padding: '0 12px',
             borderRadius: 14,
             border: '1.5px solid var(--line)',
             background: 'var(--bg-elev)',
@@ -138,10 +138,16 @@ export function SessionHeader({
             cursor: 'pointer',
             display: 'inline-flex',
             alignItems: 'center',
-            justifyContent: 'center',
+            gap: 4,
+            fontFamily: 'inherit',
+            fontWeight: 700,
+            fontSize: 13,
+            letterSpacing: '-0.1px',
+            flexShrink: 0,
           }}
         >
-          <PlusIcon size={18} />
+          <PlusIcon size={16} />
+          Invite
         </button>
       )}
       <button

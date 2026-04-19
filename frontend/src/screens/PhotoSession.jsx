@@ -384,22 +384,27 @@ export function PhotoSession({ onEnded, endedReason }) {
           position: 'absolute',
           bottom: `calc(20px + env(safe-area-inset-bottom))`,
           right: 20,
-          width: 64,
-          height: 64,
-          borderRadius: 22,
+          height: 56,
+          padding: '0 22px 0 18px',
+          borderRadius: 999,
           border: 'none',
           background: 'var(--accent)',
           color: '#fff',
           cursor: 'pointer',
           boxShadow: '0 10px 24px color-mix(in srgb, var(--accent) 40%, transparent), 0 0 0 4px var(--bg)',
-          display: 'flex',
+          display: 'inline-flex',
           alignItems: 'center',
-          justifyContent: 'center',
+          gap: 8,
+          fontFamily: 'inherit',
+          fontWeight: 800,
+          fontSize: 16,
+          letterSpacing: '-0.2px',
           zIndex: 20,
           opacity: uploading ? 0.7 : 1,
         }}
       >
-        <PlusIcon size={28} color="#fff" />
+        <PlusIcon size={22} color="#fff" />
+        Add photo
       </button>
 
       {viewer && (
