@@ -16,6 +16,8 @@ import { AddPeople } from '../components/AddPeople.jsx';
 import { EdgeScreen } from './Edge.jsx';
 import { useStore } from '../lib/store.js';
 import { useWebSocket } from '../hooks/useWebSocket.js';
+import { useWebPush } from '../hooks/useWebPush.js';
+import { PushPrompt } from '../components/PushPrompt.jsx';
 import {
   uploadPhoto,
   removePhoto as apiRemovePhoto,
@@ -65,6 +67,12 @@ export function PhotoSession({ onEnded, endedReason }) {
       setTerminated({ by: ev.by || 'host' });
       onEnded?.({ by: ev.by });
     },
+  });
+
+  const push = useWebPush({
+    sessionId,
+    token: session.token,
+    enabled: !!session.token,
   });
 
   // Merge cached local blobs for offline fallback.
@@ -256,6 +264,10 @@ export function PhotoSession({ onEnded, endedReason }) {
         onAddPeople={() => setAddOpen(true)}
         onParticipants={() => setPeopleOpen(true)}
       />
+
+      {push.promptable && (
+        <PushPrompt onEnable={push.enable} onDismiss={push.dismiss} />
+      )}
 
       {connection.status !== 'connected' && (
         <div

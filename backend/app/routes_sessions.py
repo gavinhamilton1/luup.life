@@ -4,7 +4,7 @@ import logging
 
 from fastapi import APIRouter, Depends, HTTPException, Path, Request
 
-from . import pubsub, r2, sessions
+from . import persistence, pubsub, r2, sessions
 from .config import settings
 from .deps import require_creator, require_participant
 from .rate_limit import limit_session_create
@@ -35,6 +35,7 @@ async def create(
 ):
     await limit_session_create(request)
     result = await sessions.create_session(body.type, body.nickname)
+    await persistence.snapshot_session(result["session_id"])
     return CreateSessionResponse(
         session_id=result["session_id"],
         token=result["token"],
@@ -77,6 +78,7 @@ async def info(session_id: str, auth: dict = Depends(require_participant)):
 async def join(session_id: str, body: JoinSessionBody):
     result = await sessions.join_session(session_id, body.nickname)
     participants = await sessions.list_participants(session_id)
+    persistence.mark_dirty(session_id)
     await pubsub.publish(
         session_id,
         {
@@ -100,6 +102,7 @@ async def leave(session_id: str, auth: dict = Depends(require_participant)):
     nickname = auth["nickname"]
     await sessions.leave_session(session_id, nickname)
     participants = await sessions.list_participants(session_id)
+    persistence.mark_dirty(session_id)
     await pubsub.publish(
         session_id,
         {
@@ -123,6 +126,7 @@ async def terminate(session_id: str, auth: dict = Depends(require_participant)):
         {"type": "session_terminated", "by": auth["nickname"]},
     )
     await sessions.terminate_session(session_id)
+    await persistence.delete_snapshot(session_id)
     try:
         await r2.delete_prefix(f"sessions/{session_id}/")
     except Exception:
@@ -135,6 +139,7 @@ async def terminate(session_id: str, auth: dict = Depends(require_participant)):
 @router.patch("/{session_id}/extend", response_model=ExtendResponse)
 async def extend(session_id: str, auth: dict = Depends(require_creator)):
     new_exp = await sessions.extend_session(session_id)
+    persistence.mark_dirty(session_id)
     await pubsub.publish(
         session_id,
         {"type": "session_extended", "expires_at": new_exp},

@@ -6,7 +6,7 @@ import logging
 
 from fastapi import APIRouter, Query, WebSocket, WebSocketDisconnect
 
-from . import pubsub, r2, sessions
+from . import persistence, pubsub, push, r2, sessions
 
 logger = logging.getLogger(__name__)
 
@@ -84,6 +84,9 @@ async def ws_endpoint(websocket: WebSocket, session_id: str, token: str = Query(
     pubsub_conn = redis.pubsub()
     await pubsub_conn.subscribe(pubsub.channel_for(session_id))
 
+    # Track this participant as foreground for push-suppression purposes.
+    push.mark_ws_open(session_id, nickname)
+
     stop = asyncio.Event()
 
     async def reader():
@@ -142,6 +145,7 @@ async def ws_endpoint(websocket: WebSocket, session_id: str, token: str = Query(
                 if len(text) > 2000:
                     text = text[:2000]
                 msg = await sessions.append_message(session_id, nickname, text)
+                persistence.mark_dirty(session_id)
                 await pubsub.publish(
                     session_id,
                     {
@@ -150,6 +154,20 @@ async def ws_endpoint(websocket: WebSocket, session_id: str, token: str = Query(
                         "text": msg["text"],
                         "timestamp": msg["timestamp"],
                     },
+                )
+                # Notify absent participants. Sender is excluded by nickname;
+                # anyone currently connected via WS is excluded inside the
+                # push module.
+                preview = (msg["text"] or "")[:140]
+                push.dispatch_background(
+                    session_id,
+                    payload={
+                        "type": "message",
+                        "title": msg["nickname"],
+                        "body": preview,
+                        "session_id": session_id,
+                    },
+                    exclude_nicknames={nickname},
                 )
             elif t == "pong":
                 continue
@@ -161,6 +179,12 @@ async def ws_endpoint(websocket: WebSocket, session_id: str, token: str = Query(
         stop.set()
         reader_task.cancel()
         ping_task.cancel()
+        # This participant is no longer foreground — future messages can
+        # notify them via web push until they reconnect.
+        push.mark_ws_closed(session_id, nickname)
+        # Connection is going away — no need to force a flush here; the
+        # periodic background task will catch any chat writes within
+        # FLUSH_INTERVAL. Keeping this hook cheap avoids blocking disconnect.
         try:
             await pubsub_conn.unsubscribe(pubsub.channel_for(session_id))
             await pubsub_conn.close()

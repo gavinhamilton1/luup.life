@@ -9,6 +9,8 @@ import { AddPeople } from '../components/AddPeople.jsx';
 import { EdgeScreen } from './Edge.jsx';
 import { useStore } from '../lib/store.js';
 import { useWebSocket } from '../hooks/useWebSocket.js';
+import { useWebPush } from '../hooks/useWebPush.js';
+import { PushPrompt } from '../components/PushPrompt.jsx';
 import {
   formatTimeOfDay,
   isExpiring,
@@ -43,6 +45,12 @@ export function ChatSession({ onEnded, endedReason }) {
       setTerminated({ by: ev.by || 'host' });
       onEnded?.({ by: ev.by });
     },
+  });
+
+  const push = useWebPush({
+    sessionId,
+    token: session.token,
+    enabled: !!session.token,
   });
 
   useEffect(() => {
@@ -128,6 +136,10 @@ export function ChatSession({ onEnded, endedReason }) {
         onAddPeople={() => setAddOpen(true)}
         onParticipants={() => setPeopleOpen(true)}
       />
+
+      {push.promptable && (
+        <PushPrompt onEnable={push.enable} onDismiss={push.dismiss} />
+      )}
 
       {connection.status !== 'connected' && (
         <div

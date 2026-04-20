@@ -6,7 +6,7 @@ from urllib.parse import quote
 
 from fastapi import APIRouter, Depends, File, HTTPException, Path, UploadFile
 
-from . import images, pubsub, r2, sessions
+from . import images, persistence, pubsub, push, r2, sessions
 from .deps import require_participant
 from .rate_limit import limit_photo_upload
 from .schemas import PhotoListResponse, PhotoMeta, UploadResponse
@@ -69,6 +69,7 @@ async def upload(
         "timestamp": int(time.time()),
     }
     await sessions.add_photo(session_id, meta)
+    persistence.mark_dirty(session_id)
     signed = await r2.presign_url(key, expires=900)
 
     await pubsub.publish(
@@ -84,6 +85,16 @@ async def upload(
                 "signed_url": signed,
             },
         },
+    )
+    push.dispatch_background(
+        session_id,
+        payload={
+            "type": "photo",
+            "title": f"{auth['nickname']} added a photo",
+            "body": "Tap to view",
+            "session_id": session_id,
+        },
+        exclude_nicknames={auth["nickname"]},
     )
 
     return UploadResponse(
@@ -140,6 +151,7 @@ async def remove(
         # bucket lifecycle rule cleans it. Don't re-raise — the user-visible
         # removal already succeeded.
         logger.warning("r2 delete failed; orphan key: %s", meta.get("r2_key"))
+    persistence.mark_dirty(session_id)
     await pubsub.publish(
         session_id,
         {"type": "photo_removed", "photo_id": photo_id},

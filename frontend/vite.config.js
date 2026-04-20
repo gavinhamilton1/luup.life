@@ -7,6 +7,17 @@ export default defineConfig({
     react(),
     VitePWA({
       registerType: 'autoUpdate',
+      strategies: 'injectManifest',
+      srcDir: 'src',
+      filename: 'sw.js',
+      injectManifest: {
+        globPatterns: ['**/*.{js,css,html,svg,png,webp,ico}'],
+      },
+      devOptions: {
+        enabled: true,
+        type: 'module',
+        navigateFallback: 'index.html',
+      },
       includeAssets: ['luup-logo.svg', 'icon.svg'],
       manifest: {
         name: 'LUUP',
@@ -19,28 +30,6 @@ export default defineConfig({
         start_url: '/',
         icons: [
           { src: '/icon.svg', sizes: 'any', type: 'image/svg+xml', purpose: 'any maskable' },
-        ],
-      },
-      workbox: {
-        navigateFallback: '/index.html',
-        navigateFallbackDenylist: [/^\/api/, /^\/ws/],
-        runtimeCaching: [
-          {
-            urlPattern: /^https?:\/\/.*\.r2\.cloudflarestorage\.com\/.*/i,
-            handler: 'CacheFirst',
-            options: {
-              cacheName: 'luup-photos',
-              expiration: { maxEntries: 500, maxAgeSeconds: 60 * 60 * 24 * 2 },
-            },
-          },
-          {
-            urlPattern: ({ url }) => url.pathname.startsWith('/api/'),
-            handler: 'NetworkFirst',
-            options: {
-              cacheName: 'luup-api',
-              networkTimeoutSeconds: 5,
-            },
-          },
         ],
       },
     }),

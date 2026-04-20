@@ -120,6 +120,31 @@ export async function downloadPhotoUrl(sessionId, token, photoId) {
   return handle(res);
 }
 
+export async function getVapidPublicKey() {
+  const res = await fetch(url('/api/push/vapid-public-key'));
+  return handle(res);
+}
+
+export async function subscribePush(sessionId, token, subscription) {
+  const res = await fetch(url(`/api/sessions/${sessionId}/push/subscribe`), {
+    method: 'POST',
+    headers: {
+      'content-type': 'application/json',
+      ...authHeader(token),
+    },
+    body: JSON.stringify(subscription),
+  });
+  return handle(res);
+}
+
+export async function unsubscribePush(sessionId, token) {
+  const res = await fetch(url(`/api/sessions/${sessionId}/push/subscribe`), {
+    method: 'DELETE',
+    headers: { ...authHeader(token) },
+  });
+  return handle(res);
+}
+
 export function wsUrl(sessionId, token) {
   const base = BASE
     ? BASE.replace(/^http/, 'ws')

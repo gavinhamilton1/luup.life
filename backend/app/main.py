@@ -6,13 +6,16 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
+from . import persistence
 from .config import settings
 from .redis_client import close_redis, get_redis
 from .routes_photos import router as photos_router
+from .routes_push import router as push_router
 from .routes_sessions import router as sessions_router
 from .routes_ws import router as ws_router
 
 logging.basicConfig(level=logging.INFO)
+_log = logging.getLogger(__name__)
 
 
 @asynccontextmanager
@@ -21,9 +24,23 @@ async def lifespan(app: FastAPI):
     try:
         await get_redis().ping()
     except Exception:
-        logging.getLogger(__name__).exception("redis ping failed on startup")
-    yield
-    await close_redis()
+        _log.exception("redis ping failed on startup")
+    # Replay any R2 session snapshots into Redis so a Redis wipe doesn't
+    # destroy active luups. Safe to run on every boot — idempotent per session.
+    try:
+        await persistence.restore_all()
+    except Exception:
+        _log.exception("session recovery failed on startup")
+    # Start the background flusher: dirty sessions get one R2 write per
+    # FLUSH_INTERVAL tick, regardless of message rate.
+    persistence.start_flush_loop()
+    try:
+        yield
+    finally:
+        # Drain any buffered snapshots on the way out so we don't lose
+        # the last minute of activity on graceful shutdowns.
+        await persistence.stop_flush_loop()
+        await close_redis()
 
 
 app = FastAPI(title="LUUP API", lifespan=lifespan)
@@ -51,6 +68,7 @@ app.add_middleware(
 
 app.include_router(sessions_router)
 app.include_router(photos_router)
+app.include_router(push_router)
 app.include_router(ws_router)
 
 

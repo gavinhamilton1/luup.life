@@ -7,3 +7,5 @@ pillow-heif==0.21.0
 python-multipart==0.0.19
 pydantic==2.10.4
 pydantic-settings==2.7.0
+pywebpush==2.0.0
+cryptography==43.0.3

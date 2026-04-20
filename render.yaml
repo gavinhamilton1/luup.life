@@ -69,6 +69,15 @@ services:
         generateValue: true
       - key: SESSION_TTL_SECONDS
         value: "172800"
+      # Web Push (VAPID). Generate once locally and paste the values into the
+      # dashboard; keep them stable across deploys so subscribed clients don't
+      # stop receiving pushes.
+      - key: VAPID_PUBLIC_KEY
+        sync: false
+      - key: VAPID_PRIVATE_KEY
+        sync: false
+      - key: VAPID_SUBJECT
+        value: "mailto:admin@luup.life"
 
   # --------------------------------------------------------------------------
   # Redis — session state + pub/sub fan-out for WebSockets

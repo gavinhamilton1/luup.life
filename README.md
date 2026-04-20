@@ -89,6 +89,19 @@ After that, QR codes encode `https://luup.life/j/<id>`, and the frontend talks t
   - `session:{id}:messages` — list capped at 500 JSON entries
   - `session:{id}:photos` — sorted set keyed by upload timestamp
 - **Photos**: uploaded multipart, resized to 1600px max edge, converted to JPEG @ q=85 (progressive, optimized), EXIF stripped, stored on R2 at `sessions/{id}/{photo_id}.jpg`. HEIC inputs supported via `pillow-heif`. RGBA (PNGs with transparency) are flattened onto white. Clients get 15-minute presigned URLs.
+- **Recovery**: mutations (join/leave, extend, photo add/remove, chat message) mark a session "dirty" in process memory with zero latency on the hot path. A background task flushes all dirty sessions to `recovery/sessions/{id}.json` on R2 every 60 seconds. Session **creation** bypasses the queue and snapshots immediately (so brand-new luups are recoverable the moment they exist); session **termination** deletes the snapshot immediately. On startup, the API scans the `recovery/` prefix and replays snapshots into Redis **before** accepting traffic — so a Redis wipe (redeploy, crash, plan upgrade) doesn't destroy live luups. Tokens stay valid across restore because participant hashes ride along in the snapshot. Expired snapshots are auto-pruned on boot, and the flush loop drains on graceful shutdown. Worst-case data loss: ~60s of chat. Write cap: 1 PUT per active session per minute, regardless of message rate.
+- **Web Push**: optional. If VAPID keys are configured, the backend sends a push notification to any session participant who isn't currently connected over WebSocket when a chat message is posted or a photo is uploaded. Subscriptions are stored in Redis under the session's TTL. The service worker filters pushes whose target session is already in a focused foreground tab — so only truly absent participants see notifications. Tap a notification → opens or focuses `/s/{id}`.
+
+### Generating VAPID keys
+
+Web Push requires a one-time VAPID keypair. Generate once, keep stable across deploys (so subscribed clients stay subscribed):
+
+```bash
+cd backend && source .venv/bin/activate
+python scripts/generate_vapid_keys.py
+```
+
+The script prints `VAPID_PRIVATE_KEY` and `VAPID_PUBLIC_KEY` values. Paste into `backend/.env` locally and into the `luup-api` environment on Render. Leave either empty to disable push entirely (subscribe endpoints return 503, app continues to work without notifications).
 - **Real-time**: WebSocket per client, Redis pub/sub fan-out on `ws:{session_id}` so the backend can scale horizontally.
 - **Client storage**: IndexedDB stores session tokens and a local blob cache for photos so offline viewing and "republish" flows work.
 

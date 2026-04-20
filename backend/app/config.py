@@ -12,6 +12,10 @@ class Settings(BaseSettings):
     frontend_url: str = "https://luup.life"
     secret_key: str = "dev-secret"
     session_ttl_seconds: int = 48 * 60 * 60
+    # Web Push (VAPID) — empty = push disabled.
+    vapid_public_key: str = ""
+    vapid_private_key: str = ""
+    vapid_subject: str = "mailto:admin@luup.life"
 
     class Config:
         env_file = ".env"
