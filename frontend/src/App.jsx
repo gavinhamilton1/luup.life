@@ -5,6 +5,7 @@ import { CreateFlow } from './screens/Create.jsx';
 import { JoinFlow } from './screens/Join.jsx';
 import { SessionView } from './screens/Session.jsx';
 import { StaticTerms } from './screens/StaticTerms.jsx';
+import { SettingsScreen } from './screens/Settings.jsx';
 import { EdgeScreen } from './screens/Edge.jsx';
 import { Toast } from './components/Toast.jsx';
 
@@ -17,6 +18,7 @@ export default function App() {
         <Route path="/j/:sessionId" element={<JoinFlow />} />
         <Route path="/s/:sessionId" element={<SessionView />} />
         <Route path="/terms" element={<StaticTerms />} />
+        <Route path="/settings" element={<SettingsScreen />} />
         <Route
           path="*"
           element={

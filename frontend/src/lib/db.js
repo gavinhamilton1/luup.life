@@ -84,3 +84,10 @@ export async function purgeExpiredSessions() {
     }
   }
 }
+
+export async function wipeAllLocalData() {
+  const db = await getDb();
+  const tx = db.transaction(['sessions', 'photos'], 'readwrite');
+  await Promise.all([tx.objectStore('sessions').clear(), tx.objectStore('photos').clear()]);
+  await tx.done;
+}

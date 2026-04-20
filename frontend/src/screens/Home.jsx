@@ -7,11 +7,11 @@ import {
   ClockIcon,
   ChevronRightIcon,
   TrashIcon,
+  SettingsIcon,
 } from '../components/Icon.jsx';
 import { listSessions, purgeExpiredSessions, deleteSession } from '../lib/db.js';
 import { formatRemaining, isExpired, isExpiring } from '../lib/time.js';
 import { useNow } from '../hooks/useNow.js';
-import { toggleTheme } from '../lib/theme.js';
 import { useStore } from '../lib/store.js';
 
 export function HomeScreen() {
@@ -73,19 +73,22 @@ export function HomeScreen() {
       >
         <LuupLogo size={30} color="var(--accent)" />
         <button
-          onClick={toggleTheme}
+          onClick={() => nav('/settings')}
+          aria-label="Settings"
           style={{
-            border: 'none',
-            background: 'transparent',
-            fontFamily: 'var(--mono)',
-            fontSize: 11,
-            color: 'var(--muted)',
-            letterSpacing: 0.5,
+            width: 40,
+            height: 40,
+            borderRadius: 14,
+            border: '1.5px solid var(--line)',
+            background: 'var(--bg-elev)',
+            color: 'var(--ink)',
             cursor: 'pointer',
+            display: 'inline-flex',
+            alignItems: 'center',
+            justifyContent: 'center',
           }}
-          aria-label="Toggle theme"
         >
-          luup.life
+          <SettingsIcon size={18} />
         </button>
       </div>
 
